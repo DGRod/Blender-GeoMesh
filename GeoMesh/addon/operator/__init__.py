@@ -1,9 +1,11 @@
 import bpy
 
 from .raster_model import GEOMESH_OT_RASTER_MODEL
+from .panel import OBJECT_PT_GeoMesh
 
 classes = (
     GEOMESH_OT_RASTER_MODEL,
+    OBJECT_PT_GeoMesh
 )
 
 def register_operators():
