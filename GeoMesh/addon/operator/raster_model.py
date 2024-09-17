@@ -7,10 +7,10 @@ if venv_path not in sys.path:
 # Import Blender modules
 import bpy
 import bmesh
-from bpy_extras.io_utils import ImportHelper
 
 # Import GDAL and math tools
 from osgeo import gdal
+gdal.UseExceptions()
 import numpy as np
 import pandas as pd
 import math
@@ -19,28 +19,56 @@ import math
 
 
 
-class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator, ImportHelper):
+class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator):
     """Import and model a Raster file"""
     bl_label = "Model Raster (TIFF/XYZ)"
     bl_idname = "geomesh.raster_model"
+    bl_options = {"REGISTER", "UNDO"}
 
     # Store filepath to Raster here
-    fn: bpy.props.StringProperty(name="")
+    filepath: bpy.props.StringProperty(default="")
 
     # Filter file browser for TIFF or XYZ files
     filter_glob: bpy.props.StringProperty(
         default="*.tif;*.xyz",
         options={"HIDDEN"})
     
+    # Settings for Raster import
+    z_factor: bpy.props.FloatProperty(name="Vertical Exaggeration", default=1, min=0, max=100)
+    scale: bpy.props.IntProperty(name="Scale", default=100, min=1, max=1000)
+    multires: bpy.props.BoolProperty(name="Apply Multiresolutin Modifier", default=False)
+       
+
+    # Draw the Settings window
+    def draw(self, context):
+        print("drawing", context)
+        layout = self.layout
+        layout.prop(self, "z_factor")
+        layout.prop(self, "scale")
+        layout.prop(self, "multires")
+
+
+    def invoke(self, context, event):
+        # Set default input settings
+        self.z_factor = 1
+        self.scale = 100
+        print("invoking", context)
+        # Ask the user to select a Raster file
+        bpy.context.window_manager.fileselect_add(self)
+        print(self.filepath)
+
+        return {"RUNNING_MODAL"}
+    
+
+
 
     def execute(self, context):
-        # Ask the user to select a Raster file
-        self.fn = self.filepath
-        
+        print("executing", context)
+        # print(self.filepath)
         # If filetype is .tif, translate data into DataFrame:
-        if self.fn[-4:] == ".tif":
+        if self.filepath[-4:] == ".tif":
             # Open a DataSet with GDAL
-            ds = gdal.Open(self.fn)
+            ds = gdal.Open(self.filepath)
             # Get list of values from the DataSet
             array = ds.GetRasterBand(1).ReadAsArray()
             flat_array = array.flatten()
@@ -65,19 +93,17 @@ class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator, ImportHelper):
             # Create a DataFrame with the columns and values
             df = pd.DataFrame({"x":x, "y":y, "z":flat_array})
 
-        
-
         # If filetype is .xyz, paste data into DataFrame:
-        if self.fn[-4:] == ".xyz":
+        if self.filepath[-4:] == ".xyz":
             # Get Raster dimensions
-            ds = gdal.Open(self.fn)
+            ds = gdal.Open(self.filepath)
             xsize = ds.RasterXSize
             ysize = ds.RasterYSize
             # Close DataSet
             ds = None
 
             # Open .XYZ as a DataFrame
-            df = pd.read_csv(self.fn, sep=" ", header=None)
+            df = pd.read_csv(self.filepath, sep=" ", header=None)
             df.columns = ["x", "y", "z"]
         
 
@@ -88,7 +114,7 @@ class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator, ImportHelper):
         zmin = mins["z"]
 
         # Create Tuples of all x, y, z coordinate triplets, 
-        coords = [((x - xmin)/100, (y - ymin)/100, (z - zmin)/100) for x, y, z in zip(df["x"], df["y"], df["z"])]
+        coords = [((x - xmin)/self.scale, (y - ymin)/self.scale, (self.z_factor * (z - zmin))/self.scale) for x, y, z in zip(df["x"], df["y"], df["z"])]
         
         # Create a Grid object with the same number of vertices as the Raster
         bpy.ops.mesh.primitive_grid_add(x_subdivisions=xsize - 1, y_subdivisions=ysize - 1) 
@@ -103,11 +129,10 @@ class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator, ImportHelper):
         # Overwrite the coordinates for each vertex in the Grid
         for vertex, coord in zip(bm.verts, coords):
             vertex.co = coord
-        
         # Send BMesh data back to mesh_data
         bm.to_mesh(mesh_data)
         bm.free()
-        
+
 
         return {"FINISHED"}
     
