@@ -20,24 +20,27 @@ import math
 
 
 class GEOMESH_OT_FILE_BROWSER(bpy.types.Operator):
+    """Import a Raster file (TIFF/XYZ)"""
     bl_idname = "geomesh.file_browser"
     bl_label = "Import Raster"
     bl_options = {"REGISTER", "UNDO"}
 
+    # Store the filepath
     filepath: bpy.props.StringProperty(name="File Path", subtype="FILE_PATH")
-
     # Filter file browser for TIFF or XYZ files
     filter_glob: bpy.props.StringProperty(
         default="*.tif;*.xyz",
         options={"HIDDEN"})
 
-
     def invoke(self, context, event):
+        # Call the file browser window
         bpy.context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
     
     def execute(self, context):
+        # Set the GEOMESH_Props filepath to the selected file
         bpy.context.scene.geomesh.filepath = self.filepath
+        # Call raster_model
         bpy.ops.geomesh.raster_model("INVOKE_DEFAULT")
         return {"FINISHED"}
     
@@ -47,12 +50,12 @@ class GEOMESH_OT_FILE_BROWSER(bpy.types.Operator):
 
 
 class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator):
-    """Import and model a Raster file"""
+    """Model a Raster file (TIFF/XYZ)"""
     bl_label = "Model Raster (TIFF/XYZ)"
     bl_idname = "geomesh.raster_model"
     bl_options = {"REGISTER", "UNDO"}
 
-    # Store filepath to Raster here
+    # Store filepath to Raster
     filepath: bpy.props.StringProperty(name="File Path", subtype="FILE_PATH")
     
     # Settings for Raster import
@@ -64,9 +67,11 @@ class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator):
     def poll(self, context):
         active = context.active_object
         selected = context.selected_objects
+        # Check if there are no active/selected objects, or that the active object is selected
         return not active or (active in selected) or selected == []
     
     def invoke(self, context, event):
+        # Set raster settings to default values
         geomesh = context.scene.geomesh
         geomesh.z_factor = 1
         geomesh.scale = 1
@@ -149,7 +154,7 @@ class GEOMESH_OT_RASTER_MODEL(bpy.types.Operator):
         bm.to_mesh(mesh_data)
         bm.free()
 
-        
+        # Apply multiresolution modifier to smooth the raster:
         if self.multires == True and "Multires" not in context.active_object.modifiers.keys():
             bpy.ops.object.modifier_add(type="MULTIRES")
             bpy.ops.object.multires_subdivide(modifier="Multires", mode="CATMULL_CLARK")
@@ -168,10 +173,12 @@ class OBJECT_PT_GeoMesh(bpy.types.Panel):
     bl_category = "GeoMesh"
 
     def draw(self, context):
+        # Draw the GeoMesh panel
         geomesh = context.scene.geomesh
         layout = self.layout
         layout.operator('geomesh.file_browser')
         row = layout.row()
+        # Check if an object is selected
         if context.active_object in context.selected_objects:
             layout.prop(geomesh, "z_factor")
             layout.prop(geomesh, "scale")
@@ -180,13 +187,12 @@ class OBJECT_PT_GeoMesh(bpy.types.Panel):
             layout.label(icon="ERROR", text="No raster selected")
 
 
-
+# Call raster_model whenever a geomesh property is updated
 def call_raster(self, context):
     geomesh = context.scene.geomesh
     if context.active_object:
         print("calling raster")
         bpy.ops.geomesh.raster_model(z_factor=geomesh.z_factor, scale=geomesh.scale, multires=geomesh.multires)
-
 
 
 
@@ -201,19 +207,13 @@ class GEOMESH_Props(bpy.types.PropertyGroup):
     multires: bpy.props.BoolProperty(name="Apply Multiresolution Modifier", default=False, update=call_raster)
 
 
-
-
+# Register Addon
 classes = {
     GEOMESH_Props,
     GEOMESH_OT_FILE_BROWSER,
     GEOMESH_OT_RASTER_MODEL,
     OBJECT_PT_GeoMesh,
 }
-
-
-
-
-
 
 def register():
     for cls in classes:
