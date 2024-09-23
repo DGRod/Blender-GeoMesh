@@ -9,9 +9,9 @@ bl_info = {
 }
 
 def register():
-    from .addon.register import register_addon
-    register_addon()
+    from .addon.geomesh_raster_model import register
+    register()
 
 def unregister():
-    from .addon.register import unregister_addon
-    unregister_addon()
+    from .addon.geomesh_raster_model import unregister
+    unregister()
